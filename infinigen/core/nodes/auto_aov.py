@@ -53,13 +53,20 @@ def find_material_values(nw: NodeWrangler, socket):
         if isinstance(right, float):
             return 1.0 - right
         else:
-            nw.new_node(
+            return nw.new_node(
                 Nodes.Math,
-                [
-                    1.0,
-                    find_node_input(nw, right, 'Transmission'),
-                ],
+                [1.0, right],
                 attrs={'operation': 'SUBTRACT'},
+            )
+            
+    def pow_socket_values(left, right):
+        if isinstance(left, float) and isinstance(right, float):
+            return left ** right
+        else:
+            return nw.new_node(
+                Nodes.Math,
+                [left, right],
+                attrs={'operation': 'POWER'},
             )
 
     assert socket.type == 'SHADER'
@@ -74,8 +81,15 @@ def find_material_values(nw: NodeWrangler, socket):
         right = find_material_values(nw, node.inputs[2])
         for k, v in right.items():
             if k in left:
-                left[k] = mix_socket_values(factor, left[k], v)
+                if k == 'roughness':
+                    # unfortunately blending materials with different roughness is not the same as blending their roughness, but we can approximate
+                    # Burley 2012 suggest when "interpolating" or mipmapping materials to use the roughness^2
+                    left[k] = pow_socket_values(mix_socket_values(factor, pow_socket_values(left[k], 2.0), pow_socket_values(v, 2.0)), 0.5)
+                else:
+                    left[k] = mix_socket_values(factor, left[k], v)
             else:
+                # TODO: this isn't quite correct in some cases
+                # for example, a 50% mixed diffuse+emissive has 50% emission
                 left[k] = v
         return left
     elif name == Nodes.PrincipledBSDF:
@@ -95,7 +109,7 @@ def find_material_values(nw: NodeWrangler, socket):
     elif name == Nodes.DiffuseBSDF:
         return {
             'albedo': find_node_input(nw, node, 'Color'),
-            # the diffuse node _technically_ has roughness, but it always looks rough regardless
+            # the diffuse node _technically_ has roughness, but it always looks 100% rough relative to Glossy/Principaled
             'roughness': 1.0,
         }
     elif name == Nodes.GlossyBSDF:
