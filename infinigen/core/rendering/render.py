@@ -13,12 +13,15 @@ import os
 import time
 from pathlib import Path
 
+from shapely import is_empty
+
 import bpy
 import gin
 import numpy as np
 from imageio import imwrite
 
 from infinigen.core import init, surface
+from infinigen.core.nodes.auto_aov import auto_all_material_aovs
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement import camera as cam_util
 from infinigen.core.rendering.post_render import (
@@ -154,15 +157,30 @@ def configure_compositor_output(
         },
     )
     file_slot_list = []
+    aov_kinds = None
     viewlayer = bpy.context.scene.view_layers["ViewLayer"]
     render_layers = nw.new_node(Nodes.RenderLayers)
+    
     for viewlayer_pass, socket_name in passes_to_save:
-        if hasattr(viewlayer, f"use_pass_{viewlayer_pass}"):
-            setattr(viewlayer, f"use_pass_{viewlayer_pass}", True)
+        if viewlayer_pass.startswith('aov/'):
+            aov_name = viewlayer_pass.removeprefix('aov/')
+            if aov_kinds is None:
+                aov_kinds = auto_all_material_aovs()
+            if aov_name not in aov_kinds:
+                logging.warning(f'no in-scene materials have an auto AOV {aov_name}')
+                continue
+            if not any(map(lambda aov: aov.name == aov_name, viewlayer.aovs)):
+                bpy.ops.scene.view_layer_add_aov()
+                viewlayer.aovs[-1].name = aov_name
+                viewlayer.aovs[-1].type = aov_kinds[aov_name]
+            render_socket = render_layers.outputs[aov_name]
         else:
-            setattr(viewlayer.cycles, f"use_pass_{viewlayer_pass}", True)
+            if hasattr(viewlayer, f"use_pass_{viewlayer_pass}"):
+                setattr(viewlayer, f"use_pass_{viewlayer_pass}", True)
+            else:
+                setattr(viewlayer.cycles, f"use_pass_{viewlayer_pass}", True)
+            render_socket = render_layers.outputs[socket_name]
         slot_input = file_output_node.file_slots.new(socket_name)
-        render_socket = render_layers.outputs[socket_name]
         if viewlayer_pass == "vector":
             separate_color = nw.new_node(Nodes.CompSeparateColor, [render_socket])
             comnbine_color = nw.new_node(
