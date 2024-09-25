@@ -239,6 +239,7 @@ class Nodes:
     LayerWeight = "ShaderNodeLayerWeight"
     UVMap = "ShaderNodeUVMap"
     Bump = "ShaderNodeBump"
+    OutputAOV = "ShaderNodeOutputAOV"
 
     # Layout
     Reroute = "NodeReroute"
