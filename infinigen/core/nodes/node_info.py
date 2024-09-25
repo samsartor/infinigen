@@ -178,6 +178,7 @@ class Nodes:
     Composite = "CompositorNodeComposite"
     Viewer = "CompositorNodeViewer"
     CompositorMixRGB = "CompositorNodeMixRGB"
+    OutputAOV = "ShaderNodeOutputAOV"
 
     # Point
     DistributePointsOnFaces = "GeometryNodeDistributePointsOnFaces"
@@ -222,6 +223,9 @@ class Nodes:
     CheckerTexture = "ShaderNodeTexChecker"
     EnvironmentTexture = "ShaderNodeTexEnvironment"
 
+    # Convert
+    RGBToBW = "ShaderNodeRGBToBW"
+
     # Shaders
     MixShader = "ShaderNodeMixShader"
     DiffuseBSDF = "ShaderNodeBsdfDiffuse"
@@ -239,7 +243,6 @@ class Nodes:
     LayerWeight = "ShaderNodeLayerWeight"
     UVMap = "ShaderNodeUVMap"
     Bump = "ShaderNodeBump"
-    OutputAOV = "ShaderNodeOutputAOV"
 
     # Layout
     Reroute = "NodeReroute"
