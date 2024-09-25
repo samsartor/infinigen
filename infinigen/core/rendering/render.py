@@ -170,7 +170,7 @@ def configure_compositor_output(
                 logging.warning(f'no in-scene materials have an auto AOV {aov_name}')
                 continue
             if not any(map(lambda aov: aov.name == aov_name, viewlayer.aovs)):
-                bpy.ops.scene.view_layer_add_aov()
+                viewlayer.aovs.add()
                 viewlayer.aovs[-1].name = aov_name
                 viewlayer.aovs[-1].type = aov_kinds[aov_name]
             render_socket = render_layers.outputs[aov_name]

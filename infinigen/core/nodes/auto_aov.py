@@ -16,12 +16,19 @@ def socket_value_kind(socket_value):
         kind = 'Value'
     return kind
 
-def find_node_input(nw: NodeWrangler, node, name):
-    socket = node.inputs[name]
-    links = nw.find_from(socket)
+def extract_node_input(nw: NodeWrangler, node, name):
+    to_socket = node.inputs[name]
+    to_kind = socket_value_kind(to_socket)
+    links = nw.find_from(to_socket)
     if len(links) == 0:
-        return socket.default_value
-    return links[0].from_socket
+        return to_socket.default_value
+    from_socket = links[0].from_socket
+    from_kind = socket_value_kind(from_socket)
+    if to_kind == 'Value' and from_kind == 'Color':
+        from_socket = nw.new_node(Nodes.RGBToBW, [from_socket])
+    elif to_kind == 'Color' and from_kind == 'Value':
+        from_socket = nw.new_node(Nodes.CombineRGB, [from_socket, from_socket, from_socket])
+    return from_socket
 
 def find_material_values(nw: NodeWrangler, socket):
     def mix_socket_values(factor, left, right):
@@ -76,7 +83,7 @@ def find_material_values(nw: NodeWrangler, socket):
     node = links[0].from_node
     name = type(node).__name__
     if name == Nodes.MixShader:
-        factor = find_node_input(nw, node, 0)
+        factor = extract_node_input(nw, node, 0)
         left = find_material_values(nw, node.inputs[1])
         right = find_material_values(nw, node.inputs[2])
         for k, v in right.items():
@@ -94,34 +101,36 @@ def find_material_values(nw: NodeWrangler, socket):
         return left
     elif name == Nodes.PrincipledBSDF:
         return {
-            'albedo': find_node_input(nw, node, 'Base Color'),
-            'roughness': find_node_input(nw, node, 'Roughness'),
-            'metalness': find_node_input(nw, node, 'Metallic'),
+            'albedo': extract_node_input(nw, node, 'Base Color'),
+            'roughness': extract_node_input(nw, node, 'Roughness'),
+            'metalness': extract_node_input(nw, node, 'Metallic'),
             'emission': multiply_socket_values(
-                find_node_input(nw, node, 'Emission'),
-                find_node_input(nw, node, 'Emission Strength'),
+                extract_node_input(nw, node, 'Emission'),
+                extract_node_input(nw, node, 'Emission Strength'),
             ),
             'opacity': multiply_socket_values(
-                find_node_input(nw, node, 'Alpha'),
-                oneminus_socket_values(find_node_input(nw, node, 'Transmission')),
+                extract_node_input(nw, node, 'Alpha'),
+                oneminus_socket_values(extract_node_input(nw, node, 'Transmission')),
             ),
         }
     elif name == Nodes.DiffuseBSDF:
         return {
-            'albedo': find_node_input(nw, node, 'Color'),
+            'albedo': extract_node_input(nw, node, 'Color'),
             # the diffuse node _technically_ has roughness, but it always looks 100% rough relative to Glossy/Principaled
             'roughness': 1.0,
+            'opacity': 1.0,
         }
     elif name == Nodes.GlossyBSDF:
         return {
-            'albedo': find_node_input(nw, node, 'Color'),
-            'roughness': find_node_input(nw, node, 'Roughness'),
+            'albedo': extract_node_input(nw, node, 'Color'),
+            'roughness': extract_node_input(nw, node, 'Roughness'),
+            'opacity': 1.0,
         }
     elif name == Nodes.Emission:
         return {
             'emission': multiply_socket_values(
-                find_node_input(nw, node, 'Color'),
-                find_node_input(nw, node, 'Strength'),
+                extract_node_input(nw, node, 'Color'),
+                extract_node_input(nw, node, 'Strength'),
             ),
         }
     elif name == Nodes.TranslucentBSDF or name == Nodes.TransparentBSDF:
@@ -130,13 +139,36 @@ def find_material_values(nw: NodeWrangler, socket):
         }
     elif name == Nodes.RefractionBSDF or name == Nodes.GlassBSDF:
         return {
-            'albedo': find_node_input(nw, node, 'Color'),
-            'roughness': find_node_input(nw, node, 'Roughness'),
+            # technically glass has a color, but it is transmission not reflection so we don't count it
+            'roughness': extract_node_input(nw, node, 'Roughness'),
             'opacity': 0.0,
+        }
+    elif name == 'ShaderNodeGroup':
+        if not any(map(lambda socket: socket.name.startswith('aov/'), node.outputs)):
+            auto_group_aovs(NodeWrangler(node.node_tree))
+        return {
+            socket.name.removeprefix('aov/'): socket
+            for socket in node.outputs
+            if socket.name.startswith('aov/')
         }
     else:
         return {}
 
+def auto_group_aovs(nw: NodeWrangler):
+    group_output = nw.find(Nodes.GroupOutput)[0]
+    surface = [socket for socket in group_output.inputs if socket.type == 'SHADER'][0]
+    values = find_material_values(nw, surface)
+    for name, value in values.items():
+        kind = socket_value_kind(value)
+        if kind is None:
+            raise ValueError(f'attempted to create a group output for {value}')
+        kind = {
+            'Value': 'NodeSocketFloat',
+            'Color': 'NodeSocketColor',
+        }[kind]
+        nw.node_group.outputs.new(kind, f'aov/{name}')
+        nw.connect_input(group_output.inputs[f'aov/{name}'], value)
+    
 def auto_material_aovs(nw: NodeWrangler, clear_existing=True):
     if clear_existing:
         existing = nw.find(Nodes.OutputAOV)
