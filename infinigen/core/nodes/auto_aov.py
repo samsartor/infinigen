@@ -11,7 +11,7 @@ def socket_value_kind(socket_value):
         elif socket.type == 'VALUE':
             kind = 'Value'
     elif isinstance(socket_value, bpy.types.bpy_prop_array) and len(socket_value) == 4:
-        kind = 'Color'        
+        kind = 'Color'
     elif isinstance(socket_value, float):
         kind = 'Value'
     return kind
@@ -65,7 +65,7 @@ def find_material_values(nw: NodeWrangler, socket):
                 [1.0, right],
                 attrs={'operation': 'SUBTRACT'},
             )
-            
+
     def pow_socket_values(left, right):
         if isinstance(left, float) and isinstance(right, float):
             return left ** right
@@ -102,7 +102,12 @@ def find_material_values(nw: NodeWrangler, socket):
     elif name == Nodes.PrincipledBSDF:
         return {
             'albedo': extract_node_input(nw, node, 'Base Color'),
-            'roughness': extract_node_input(nw, node, 'Roughness'),
+            # TODO: is this a reasonable way to account for clearcoat?
+            'roughness': mix_socket_values(
+                extract_node_input(nw, node, 'Clearcoat'),
+                extract_node_input(nw, node, 'Roughness'),
+                extract_node_input(nw, node, 'Clearcoat Roughness'),
+            ),
             'metalness': extract_node_input(nw, node, 'Metallic'),
             'emission': multiply_socket_values(
                 extract_node_input(nw, node, 'Emission'),
@@ -118,12 +123,16 @@ def find_material_values(nw: NodeWrangler, socket):
             'albedo': extract_node_input(nw, node, 'Color'),
             # the diffuse node _technically_ has roughness, but it always looks 100% rough relative to Glossy/Principaled
             'roughness': 1.0,
+            'metalness': 0.0,
+            'emission': 0.0,
             'opacity': 1.0,
         }
     elif name == Nodes.GlossyBSDF:
         return {
             'albedo': extract_node_input(nw, node, 'Color'),
             'roughness': extract_node_input(nw, node, 'Roughness'),
+            'metalness': 0.0,
+            'emission': 0.0,
             'opacity': 1.0,
         }
     elif name == Nodes.Emission:
@@ -168,7 +177,7 @@ def auto_group_aovs(nw: NodeWrangler):
         }[kind]
         nw.node_group.outputs.new(kind, f'aov/{name}')
         nw.connect_input(group_output.inputs[f'aov/{name}'], value)
-    
+
 def auto_material_aovs(nw: NodeWrangler, clear_existing=True):
     if clear_existing:
         existing = nw.find(Nodes.OutputAOV)
