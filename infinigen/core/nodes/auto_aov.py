@@ -52,7 +52,7 @@ def find_material_values(nw: NodeWrangler, socket):
                 left = [left, left, left, left]
             if isinstance(right, float):
                 right = [right, right, right, right]
-            return nw.new_node(Nodes.MixRGB, input_kwargs={'A': left, 'B': right}, attrs={'blend_type': 'MULTIPLY'})
+            return nw.new_node(Nodes.MixRGB, input_kwargs={'A': left, 'B': right, 'Factor': 1.0}, attrs={'blend_type': 'MULTIPLY'})
         else:
             return nw.new_node(Nodes.Math, [left, right], attrs={'operation': 'MULTIPLY'})
 
@@ -199,7 +199,7 @@ def auto_material_aovs(nw: NodeWrangler, clear_existing=True):
         kind = socket_value_kind(value)
         if kind is None:
             raise ValueError(f'attempted to create an output aov for {value}')
-        nw.new_node(Nodes.OutputAOV, attrs={'name': name}, input_kwargs={kind: value})
+        nw.new_node(Nodes.OutputAOV, attrs={'aov_name': name}, input_kwargs={kind: value})
         kinds[name] = kind.upper()
     return kinds
 
