@@ -104,18 +104,18 @@ def find_material_values(nw: NodeWrangler, socket):
             'albedo': extract_node_input(nw, node, 'Base Color'),
             # TODO: is this a reasonable way to account for clearcoat?
             'roughness': mix_socket_values(
-                extract_node_input(nw, node, 'Clearcoat'),
+                extract_node_input(nw, node, 'Coat Weight'),
                 extract_node_input(nw, node, 'Roughness'),
-                extract_node_input(nw, node, 'Clearcoat Roughness'),
+                extract_node_input(nw, node, 'Coat Roughness'),
             ),
             'metalness': extract_node_input(nw, node, 'Metallic'),
             'emission': multiply_socket_values(
-                extract_node_input(nw, node, 'Emission'),
+                extract_node_input(nw, node, 'Emission Color'),
                 extract_node_input(nw, node, 'Emission Strength'),
             ),
             'opacity': multiply_socket_values(
                 extract_node_input(nw, node, 'Alpha'),
-                oneminus_socket_values(extract_node_input(nw, node, 'Transmission')),
+                oneminus_socket_values(extract_node_input(nw, node, 'Transmission Weight')),
             ),
         }
     elif name == Nodes.DiffuseBSDF:
@@ -175,7 +175,7 @@ def auto_group_aovs(nw: NodeWrangler):
             'Value': 'NodeSocketFloat',
             'Color': 'NodeSocketColor',
         }[kind]
-        nw.node_group.outputs.new(kind, f'aov/{name}')
+        nw.node_group.interface.new_socket(f'aov/{name}', in_out='OUTPUT', socket_type=kind)
         nw.connect_input(group_output.inputs[f'aov/{name}'], value)
 
 def auto_material_aovs(nw: NodeWrangler, clear_existing=True):

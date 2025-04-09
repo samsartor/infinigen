@@ -198,8 +198,10 @@ def configure_compositor_output(
             render_socket = render_layers.outputs[aov_name]
         elif hasattr(viewlayer, f"use_pass_{viewlayer_pass}"):
             setattr(viewlayer, f"use_pass_{viewlayer_pass}", True)
+            render_socket = render_layers.outputs[socket_name]
         else:
             setattr(viewlayer.cycles, f"use_pass_{viewlayer_pass}", True)
+            render_socket = render_layers.outputs[socket_name]
         # must save the material pass index as EXR
         file_output_node = (
             default_file_output_node
@@ -208,7 +210,6 @@ def configure_compositor_output(
         )
 
         slot_input = file_output_node.file_slots.new(socket_name)
-        render_socket = render_layers.outputs[socket_name]
         match viewlayer_pass:
             case "vector":
                 separate_color = nw.new_node(Nodes.CompSeparateColor, [render_socket])
