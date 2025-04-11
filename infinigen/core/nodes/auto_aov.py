@@ -33,8 +33,9 @@ def extract_node_input(nw: NodeWrangler, node, name):
 def find_material_values(nw: NodeWrangler, socket):
     def mix_socket_values(factor, left, right):
         kind = socket_value_kind(left)
-        if kind is None or kind != socket_value_kind(right):
-            raise ValueError(f'attempted to mix {type(left)} with {type(right)}')
+        rkind = socket_value_kind(right)
+        if kind is None or kind != rkind:
+            raise ValueError(f'attempted to mix {type(left)} ({kind}) with {type(right)} ({rkind})')
         if kind == 'Color':
             return nw.new_node(Nodes.MixRGB, input_kwargs={'Factor': factor, 'A': left, 'B': right})
         if kind == 'Value':
@@ -124,15 +125,15 @@ def find_material_values(nw: NodeWrangler, socket):
             # the diffuse node _technically_ has roughness, but it always looks 100% rough relative to Glossy/Principaled
             'roughness': 1.0,
             'metalness': 0.0,
-            'emission': 0.0,
+            'emission': nw.new_node(Nodes.CombineRGB, [0.0, 0.0, 0.0]),
             'opacity': 1.0,
         }
-    elif name == Nodes.GlossyBSDF:
+    elif name == Nodes.GlossyBSDF or name == 'ShaderNodeBsdfAnisotropic':
         return {
             'albedo': extract_node_input(nw, node, 'Color'),
             'roughness': extract_node_input(nw, node, 'Roughness'),
             'metalness': 0.0,
-            'emission': 0.0,
+            'emission': nw.new_node(Nodes.CombineRGB, [0.0, 0.0, 0.0]),
             'opacity': 1.0,
         }
     elif name == Nodes.Emission:
@@ -144,12 +145,18 @@ def find_material_values(nw: NodeWrangler, socket):
         }
     elif name == Nodes.TranslucentBSDF or name == Nodes.TransparentBSDF:
         return {
+            'albedo': nw.new_node(Nodes.CombineRGB, [1.0, 1.0, 1.0]),
+            'roughness': 0.0,
+            'metalness': 0.0,
+            'emission': nw.new_node(Nodes.CombineRGB, [0.0, 0.0, 0.0]),
             'opacity': 0.0,
         }
     elif name == Nodes.RefractionBSDF or name == Nodes.GlassBSDF:
         return {
-            # technically glass has a color, but it is transmission not reflection so we don't count it
+            'albedo': extract_node_input(nw, node, 'Color'),
             'roughness': extract_node_input(nw, node, 'Roughness'),
+            'metalness': 0.0,
+            'emission': nw.new_node(Nodes.CombineRGB, [0.0, 0.0, 0.0]),
             'opacity': 0.0,
         }
     elif name == 'ShaderNodeGroup':

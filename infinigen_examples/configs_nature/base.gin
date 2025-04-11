@@ -46,6 +46,7 @@ full/render_image.passes_to_save = [
     ['aov/albedo', 'Albedo'],
     ['aov/roughness', 'Rough'],
     ['aov/metalness', 'Metal'],
+    ['aov/opacity', 'Opacity'],
     ['transmission_direct', 'TransDir'],
     ['transmission_color', 'TransCol'],
     ['transmission_indirect', 'TransInd'],
